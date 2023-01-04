@@ -159,6 +159,7 @@ class PPO(OnPolicyAlgorithm):
         self.clip_range_vf = clip_range_vf
         self.normalize_advantage = normalize_advantage
         self.target_kl = target_kl
+        self.approx_kl = None
 
         if _init_setup_model:
             self._setup_model()
@@ -278,6 +279,8 @@ class PPO(OnPolicyAlgorithm):
             if not continue_training:
                 break
 
+        self.approx_kl = np.mean(approx_kl_divs) # save approx KL for learning rate scheduling
+        self._n_updates += self.n_epochs
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
         # Logs
