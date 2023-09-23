@@ -73,7 +73,14 @@ class VecCheckNan(VecEnvWrapper):
         found = []
         for name, value in kwargs.items():
             if isinstance(value, (np.ndarray, list)):
-                found += self.check_array_value(name, np.asarray(value))
+                f = self.check_array_value(name, np.asarray(value))
+                found += f
+                if f:
+                    print('-'*20)
+                    print("in: ", name)
+                    print(np.array(value).shape)
+                    print(" found: ", np.argwhere(np.isnan(np.array(value))))
+                    print('-'*20)
             elif isinstance(value, dict):
                 for inner_name, inner_val in value.items():
                     found += self.check_array_value(f"{name}.{inner_name}", inner_val)

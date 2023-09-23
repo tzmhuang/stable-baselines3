@@ -12,7 +12,7 @@ from stable_baselines3.common.running_mean_std import RunningMeanStd
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvStepReturn, VecEnvWrapper
 
 
-class VecNormalize(VecEnvWrapper):
+class VecNormalizeCustom(VecEnvWrapper):
     """
     A moving average, normalizing wrapper for vectorized environment.
     has support for saving/loading moving average,
@@ -34,6 +34,7 @@ class VecNormalize(VecEnvWrapper):
         venv: VecEnv,
         training: bool = True,
         norm_obs: bool = True,
+        skip_obs_idx: List[int] = None,
         norm_reward: bool = True,
         clip_obs: float = 10.0,
         clip_reward: float = 10.0,
@@ -44,6 +45,7 @@ class VecNormalize(VecEnvWrapper):
         VecEnvWrapper.__init__(self, venv)
 
         self.norm_obs = norm_obs
+        self.skip_obs_idx = skip_obs_idx
         self.norm_obs_keys = norm_obs_keys
         # Check observation spaces
         if self.norm_obs:
@@ -215,7 +217,9 @@ class VecNormalize(VecEnvWrapper):
         :param obs_rms: associated statistics
         :return: normalized observation
         """
-        return np.clip((obs - obs_rms.mean) / np.sqrt(obs_rms.var + self.epsilon), -self.clip_obs, self.clip_obs)
+        normed_obs = np.clip((obs - obs_rms.mean) / np.sqrt(obs_rms.var + self.epsilon), -self.clip_obs, self.clip_obs)
+        normed_obs[...,self.skip_obs_idx] = obs[...,self.skip_obs_idx] 
+        return normed_obs
 
     def _unnormalize_obs(self, obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
         """

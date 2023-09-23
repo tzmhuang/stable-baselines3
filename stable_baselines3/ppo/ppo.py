@@ -11,6 +11,10 @@ from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticP
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance, get_schedule_fn
 
+# NOTE: Added for debug
+from stable_baselines3.common.utils import obs_as_tensor
+
+
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
@@ -190,6 +194,20 @@ class PPO(OnPolicyAlgorithm):
             clip_range_vf = self.clip_range_vf(self._current_progress_remaining)
 
         entropy_losses = []
+        # NOTE: Added for debug
+        # rollout_returns = []
+        # rollout_advs = []
+        # rollout_advs_copy = []
+        # rollout_advs_std = []
+        # rollout_advs_mean = []
+        # rollout_values = []
+        # rollout_advs_normed = []
+        # rollout_obs = []
+        # rollout_actions = []
+        # value_preds = []
+        # last_values = []
+        # ----------
+
         pg_losses, value_losses = [], []
         clip_fractions = []
 
@@ -212,6 +230,10 @@ class PPO(OnPolicyAlgorithm):
                 values = values.flatten()
                 # Normalize advantage
                 advantages = rollout_data.advantages
+                # advantages_copy = advantages.detach().clone() # NOTE: for debug only
+                # advantages_std = advantages_copy.std() # NOTE: for debug only
+                # advantages_mean = advantages_copy.mean() # NOTE: for debug only
+
                 # Normalization does not make sense if mini batchsize == 1, see GH issue #325
                 if self.normalize_advantage and len(advantages) > 1:
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
@@ -251,7 +273,38 @@ class PPO(OnPolicyAlgorithm):
 
                 entropy_losses.append(entropy_loss.item())
 
-                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
+                # NOTE: Aded for debug
+                # rollout_returns.append(th.mean(rollout_data.returns).item())
+                # rollout_advs.append(th.mean(rollout_data.advantages).item())
+                # rollout_advs_copy.append(th.mean(advantages_copy).item())
+                # rollout_advs_std.append(th.mean(advantages_std).item())
+                # rollout_advs_mean.append(th.mean(advantages_mean).item())
+                # rollout_advs_normed.append(th.mean(advantages).item())
+                # rollout_values.append(th.mean(rollout_data.old_values).item())
+
+                # rollout_actions.append(th.mean(rollout_data.actions).item())
+                # rollout_obs.append(th.mean(rollout_data.observations).item())
+                # value_preds.append(th.mean(values_pred).item())
+
+                with th.no_grad():
+                    # Compute value for the last timestep
+                    last_value = self.policy.predict_values(obs_as_tensor(self._last_obs, self.device))
+
+                # last_values.append(th.mean(last_value).item())
+                # ---------------------
+
+
+                # bound loss [from rl-games]
+                # action_dist = self.policy.get_distribution(rollout_data.observations)
+                # mu = action_dist.distribution.mean
+                # mu_loss_high = th.clamp_min(mu - 1.1, 0.0)**2
+                # mu_loss_low = th.clamp_max(mu + 1.1, 0.0)**2
+                # bound_loss = (mu_loss_low + mu_loss_high).sum(axis=-1)
+
+                # loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss + bound_loss.mean() * 0.0001
+                #
+                
+                loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss                
 
                 # Calculate approximate form of reverse KL Divergence for early stopping
                 # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
@@ -291,6 +344,20 @@ class PPO(OnPolicyAlgorithm):
         self.logger.record("train/clip_fraction", np.mean(clip_fractions))
         self.logger.record("train/loss", loss.item())
         self.logger.record("train/explained_variance", explained_var)
+        # NOTE: Added for debug
+        # self.logger.record("debug/return", np.mean(rollout_returns))
+        # self.logger.record("debug/value", np.mean(rollout_values))
+        # self.logger.record("debug/advantage", np.mean(rollout_advs))
+        # self.logger.record("debug/advantage_copy", np.mean(rollout_advs_copy))
+        # self.logger.record("debug/advantage_std", np.mean(rollout_advs_std))
+        # self.logger.record("debug/advantage_mean", np.mean(rollout_advs_mean))
+        # self.logger.record("debug/advantage_normed", np.mean(rollout_advs_normed))
+        # self.logger.record("debug/rollout_actions", np.mean(rollout_actions))
+        # self.logger.record("debug/rollout_obs", np.mean(rollout_obs))
+        # self.logger.record("debug/value_preds", np.mean(value_preds))
+        # self.logger.record("debug/last_values", np.mean(last_values))
+        # self.logger.record("debug/episode_starts", np.mean(self.rollout_buffer.episode_starts.flatten()))
+        # ----------------------
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
 

@@ -14,6 +14,8 @@ from stable_baselines3.common.vec_env.vec_normalize import VecNormalize
 from stable_baselines3.common.vec_env.vec_transpose import VecTransposeImage
 from stable_baselines3.common.vec_env.vec_video_recorder import VecVideoRecorder
 
+from stable_baselines3.common.vec_env.vec_normalize_custom import VecNormalizeCustom
+
 # Avoid circular import
 if typing.TYPE_CHECKING:
     from stable_baselines3.common.type_aliases import GymEnv
@@ -91,4 +93,5 @@ __all__ = [
     "unwrap_vec_normalize",
     "is_vecenv_wrapped",
     "sync_envs_normalization",
+    "VecNormalizeCustom",
 ]

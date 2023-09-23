@@ -45,6 +45,134 @@ class FlattenExtractor(BaseFeaturesExtractor):
         return self.flatten(observations)
 
 
+class MlpFeatureExtractor(BaseFeaturesExtractor):
+    """
+    Feature extract that flatten the input.
+    Used as a placeholder when feature extraction is not needed.
+
+    :param observation_space:
+    """
+
+    def __init__(self, observation_space: gym.Space,
+        net_arch: Union[List[int]],
+        activation_fn: Type[nn.Module],
+        device: Union[th.device, str] = "auto",
+        ) -> None:
+
+        super().__init__(observation_space, get_flattened_obs_dim(observation_space))
+        device = get_device(device)
+        net: List[nn.Module] = []
+        last_layer_dim = self.features_dim
+
+        # save dimensions of layers in extractor nets
+        layers_dims = net_arch
+
+        # Iterate through the policy layers and build the extractor net
+        for curr_layer_dim in layers_dims:
+            net.append(nn.Linear(last_layer_dim, curr_layer_dim))
+            net.append(activation_fn())
+            last_layer_dim = curr_layer_dim
+
+        # update featuers dimension
+        self._features_dim = last_layer_dim
+
+        self.net = nn.Sequential(*net).to(device)
+
+
+    def forward(self, observations: th.Tensor) -> th.Tensor:
+        return self.net(observations)
+
+class MlpEncodeConcat(BaseFeaturesExtractor):
+    """
+    Feature extract that flatten the input.
+    Used as a placeholder when feature extraction is not needed.
+
+    :param observation_space:
+    """
+
+    def __init__(self, observation_space: gym.Space,
+        loc_index,
+        proprio_index,
+        force_index,
+        action_index,
+        net_arch: Union[List[int]],
+        activation_fn: Type[nn.Module],
+        device: Union[th.device, str] = "auto",
+        ) -> None:
+
+        super().__init__(observation_space, get_flattened_obs_dim(observation_space))
+        device = get_device(device)
+        layers_dims = net_arch
+        self.loc_index = loc_index
+        self.proprio_index = proprio_index
+        self.force_index = force_index
+        self.action_index = action_index
+
+        loc_dim = len(loc_index)
+        proprio_dim = len(proprio_index)
+        force_dim = len(force_index)
+        action_dim = len(action_index)
+
+
+        loc_net: List[nn.Module] = []
+        last_layer_dim = loc_dim
+        # Iterate through the policy layers and build the extractor net
+        for curr_layer_dim in layers_dims:
+            loc_net.append(nn.Linear(last_layer_dim, curr_layer_dim))
+            loc_net.append(activation_fn())
+            last_layer_dim = curr_layer_dim
+
+        proprio_net: List[nn.Module] = []
+        last_layer_dim = proprio_dim
+        for curr_layer_dim in layers_dims:
+            proprio_net.append(nn.Linear(last_layer_dim, curr_layer_dim))
+            proprio_net.append(activation_fn())
+            last_layer_dim = curr_layer_dim
+
+
+        force_encoder: List[nn.Module] = []
+        last_layer_dim = force_dim
+        for curr_layer_dim in layers_dims:
+            force_encoder.append(nn.Linear(last_layer_dim, curr_layer_dim))
+            force_encoder.append(activation_fn())
+            last_layer_dim = curr_layer_dim
+
+
+        action_encoder: List[nn.Module] = []
+        last_layer_dim = action_dim
+        for curr_layer_dim in layers_dims:
+            action_encoder.append(nn.Linear(last_layer_dim, curr_layer_dim))
+            action_encoder.append(activation_fn())
+            last_layer_dim = curr_layer_dim
+
+        self.loc_net = nn.Sequential(*loc_net).to(device)
+        self.proprio_net = nn.Sequential(*proprio_net).to(device)
+        self.force_encoder = nn.Sequential(*force_encoder).to(device)
+        self.action_encoder = nn.Sequential(*action_encoder).to(device)
+
+        # update featuers dimension # Hard coded
+        self._features_dim = last_layer_dim * 4
+        
+
+    def forward(self, observations: th.Tensor) -> th.Tensor:
+        loc = observations[:,self.loc_index]
+        proprio = observations[:,self.proprio_index]
+        force = observations[:,self.force_index]
+        action = observations[:,self.action_index]
+
+
+        loc_feat = self.loc_net(loc)
+        proprio_feat = self.proprio_net(proprio)
+        force_feat = self.force_encoder(force)
+        action_feat = self.action_encoder(action)
+
+
+        final_feat = th.concat([loc_feat, proprio_feat, force_feat, action_feat], dim=-1)
+        
+        return final_feat
+
+
+
 class NatureCNN(BaseFeaturesExtractor):
     """
     CNN from DQN Nature paper:

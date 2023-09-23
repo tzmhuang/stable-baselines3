@@ -1,13 +1,14 @@
 import time
 import warnings
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
-import numpy as np
+
+import torch as th
 
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn, VecEnvWrapper
 
 
-class VecMonitor(VecEnvWrapper):
+class VecMonitorGPU(VecEnvWrapper):
     """
     A vectorized monitor wrapper for *vectorized* Gym environments,
     it is used to record the episode reward, length, time and other data.
@@ -28,6 +29,7 @@ class VecMonitor(VecEnvWrapper):
         venv: VecEnv,
         filename: Optional[str] = None,
         info_keywords: Tuple[str, ...] = (),
+        device: Union[th.device, str] = "auto",
     ):
         # Avoid circular import
         from stable_baselines3.common.monitor import Monitor, ResultsWriter
@@ -65,11 +67,12 @@ class VecMonitor(VecEnvWrapper):
         else:
             self.results_writer = None
         self.info_keywords = info_keywords
+        self.device = device
 
     def reset(self) -> VecEnvObs:
         obs = self.venv.reset()
-        self.episode_returns = np.zeros(self.num_envs, dtype=np.float32)
-        self.episode_lengths = np.zeros(self.num_envs, dtype=np.int32)
+        self.episode_returns = th.zeros(self.num_envs, dtype=th.float32).to(self.device)
+        self.episode_lengths = th.zeros(self.num_envs, dtype=th.int32).to(self.device)
         return obs
 
     def step_wait(self) -> VecEnvStepReturn:
@@ -82,10 +85,7 @@ class VecMonitor(VecEnvWrapper):
                 info = infos[i].copy()
                 episode_return = self.episode_returns[i]
                 episode_length = self.episode_lengths[i]
-                is_success = infos[i]['is_success'].cpu().numpy()
-                dist_to_goal = infos[i]['dist_to_goal'].cpu().numpy()
-                episode_info = {"r": episode_return, "l": episode_length, "t": round(time.time() - self.t_start, 6),
-                                "is_success": is_success, "dist_to_goal": dist_to_goal}
+                episode_info = {"r": episode_return, "l": episode_length, "t": round(time.time() - self.t_start, 6)}
                 for key in self.info_keywords:
                     episode_info[key] = info[key]
                 info["episode"] = episode_info
